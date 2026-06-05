@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fotball Mål Tracker</title>
+  <style>
+
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #002b5c;
+      color: white;
+    }
+
+    .header {
+      background: linear-gradient(90deg,#003A8F,#ED1C24);
+      padding: 15px;
+      text-align: center;
+      font-size: 22px;
+      font-weight: bold;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+    .card {
+      background: #003A8F;
+      margin: 10px;
+      padding: 12px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+
+    input {
+      padding: 8px;
+      border-radius: 8px;
+      border: none;
+      width: 120px;
+      margin: 4px;
+    }
+    button {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: none;
+      background: white;
+      color: #003A8F;
+      font-weight: bold;
+      margin: 4px;
+    }
+
+    button.primary {
+      background: #ED1C24;
+      color: white;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      color: black;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    th {
+      background: #ED1C24;
+      color: white;
+      padding: 10px;
+      font-size: 14px;
+    }
+
+    td {
+      padding: 6px;
+      text-align: center;
+      border-bottom: 1px solid #eee;
+    }
+    input[type="number"] {
+      width: 55px;
+      padding: 6px;
+    }
+
+    .smallBtn {
+      font-size: 10px;
+      margin-top: 3px;
+      background: #ED1C24;
+      color: white;
+      padding: 3px 6px;
+    }
+
+    .total {
+      font-weight: bold;
+      background: #f5f5f5;
+    }
+
+  </style>
+</head>
+<body>
+
+<div class="header">⚽ Ipswich Goal Tracker</div>
+
+
+<div class="card" style="text-align:center;">
+  <button onclick="exportToExcel()" class="primary">⬇ Last ned Excel</button>
+  <div>
+    <input id="playerName" placeholder="Spillernavn">
+    <button onclick="addPlayer()">+ Spiller</button>
+  </div>
+  <div>
+    <input id="matchName" placeholder="Kampnavn">
+    <button onclick="addMatch()">+ Kamp</button>
+  </div>
+</div>
+
+<div class="card">
+<table>
+  <thead>
+    <tr id="headerRow">
+      <th>Spiller</th>
+    </tr>
+  </thead>
+  <tbody id="body"></tbody>
+</table>
+</div>
+<script>
+let players = JSON.parse(localStorage.getItem("players") || "[]");
+let matches = JSON.parse(localStorage.getItem("matches") || "[]");
+let goals = JSON.parse(localStorage.getItem("goals") || "{}");
+
+
+function getTotal(player) {
+  let total = 0;
+  matches.forEach(match => {
+    total += goals[player+"-"+match] || 0;
+  });
+  return total;
+}
+
+
+function render() {
+  const headerRow = document.getElementById("headerRow");
+  const body = document.getElementById("body");
+
+  headerRow.innerHTML = "<th>Spiller</th>";
+
+
+  matches.forEach((match, mIndex) => {
+    headerRow.innerHTML += `<th>${match}<br><button class='smallBtn' onclick="removeMatch(${mIndex})">✖</button></th>`;
+  });
+
+  headerRow.innerHTML += "<th>Totalt</th>";
+
+
+  body.innerHTML = "";
+
+  players.sort((a,b)=>getTotal(b)-getTotal(a));
+
+
+  players.forEach((player, pIndex) => {
+
+    let total = getTotal(player);
+    let medal = total>0 && total===getTotal(players[0]) ? " 🥇" : "";
+    let row = `<tr><td><strong>${player}${medal}</strong><br><button class='smallBtn' onclick="removePlayer(${pIndex})">✖</button></td>`;
+
+
+    matches.forEach(match => {
+      let key = player + "-" + match;
+      let value = goals[key] || "";
+      row += `<td><input type="number" value="${value}" onchange="updateGoal('${player}','${match}',this.value)"></td>`;
+    });
+
+    row += `<td class='total'>${total}</td>`;
+    row += "</tr>";
+
+
+    body.innerHTML += row;
+  });
+}
+
+function saveData() {
+  localStorage.setItem("players", JSON.stringify(players));
+  localStorage.setItem("matches", JSON.stringify(matches));
+  localStorage.setItem("goals", JSON.stringify(goals));
+}
+
+function exportToExcel() {
+  let csv = "Spiller," + matches.join(",") + ",Totalt
+";
+  players.forEach(player => {
+    let row = player;
+    let total = 0;
+
+
+    matches.forEach(match => {
+      let val = goals[player+"-"+match] || 0;
+      row += "," + val;
+      total += val;
+    });
+
+
+    row += "," + total;
+    csv += row + "
+";
+  });
+
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "fotball_maal.csv";
+  a.click();
+}
+
+
+
+
+function updateGoal(player, match, value) {
+  goals[player+"-"+match] = parseInt(value)||0;
+  saveData();
+  render();
+}
+
+function addPlayer() {
+  const input = document.getElementById("playerName");
+  const name = input.value.trim();
+  if(name){
+    players.push(name);
+    input.value="";
+    saveData();
+    render();
+  }
+}
+
+function addMatch() {
+  const input = document.getElementById("matchName");
+  const name = input.value.trim();
+  if(name){
+    matches.push(name);
+    input.value="";
+    saveData();
+    render();
+  }
+}
+}
+function removePlayer(index) {
+  const removed = players.splice(index,1);
+  for(let key in goals){
+    if(key.startsWith(removed[0]+"-")) delete goals[key];
+  }
+  saveData();
+  render();
+}
+
+function removeMatch(index) {
+  const removed = matches.splice(index,1);
+  for(let key in goals){
+    if(key.endsWith("-"+removed[0])) delete goals[key];
+  }
+  saveData();
+  render();
+}
+
+render();
+</script>
+
+</body>
